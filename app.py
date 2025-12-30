@@ -21,7 +21,7 @@ with st.sidebar:
     
     st.markdown("### ☁️ Conexión Sheets")
     nombre_archivo = st.text_input("Archivo", "Registro2")
-    nombre_hoja = st.text_input("Hoja", "Hoja 24 ")
+    nombre_hoja = st.text_input("Hoja", "Hoja 24")
     
     boton_correr = st.button("🚀 EJECUTAR SIMULACIÓN", type="primary")
 
@@ -153,6 +153,7 @@ if boton_correr:
         except Exception as e:
 
             st.error(f"Ocurrió un error: {e}")
+
 
 
 
