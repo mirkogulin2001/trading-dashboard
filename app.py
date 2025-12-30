@@ -263,8 +263,10 @@ with tab_real:
                     # Nota: Calcular DD % sobre PnL solo tiene sentido si asumimos un capital. 
                     # Aquí calcularemos el "Max Drawdown $" (Caída máxima en dólares)
                     caidas_dolares = picos - equity_curve
+                    caidas_dolares_porcentual = (picos - equity_curve)/equity_curve
                     max_dd_dolares = np.max(caidas_dolares)
-                    
+                    max_dd_porcentual = np.max(caidas_dolares_porcentual)
+
                     # 3. Visualización de KPIs
                     col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
                     
@@ -273,6 +275,7 @@ with tab_real:
                     col_kpi3.metric("R/B Ratio", f"{ratio_rb:.2f}")
                     col_kpi4.metric("Trades", f"{n_trades}")
                     col_kpi5.metric("Max DD ($)", f"-${max_dd_dolares:,.2f}", help="Máxima caída en dólares desde un pico de ganancias")
+                    col_kpi6.metric("Max DD (%)", f"-${max_dd_porcentual:,.2f}", help="Máxima caída porcentual desde un pico de ganancias")
 
                     # 4. Gráficos Reales
                     plt.style.use('dark_background')
@@ -302,3 +305,4 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
