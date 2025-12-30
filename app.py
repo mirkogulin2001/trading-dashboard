@@ -263,7 +263,7 @@ with tab_real:
                     # Nota: Calcular DD % sobre PnL solo tiene sentido si asumimos un capital. 
                     # Aquí calcularemos el "Max Drawdown $" (Caída máxima en dólares)
                     caidas_dolares = picos - equity_curve
-                    caidas_dolares_porcentual = (picos - equity_curve)/equity_curve
+                    caidas_dolares_porcentual = (((picos - equity_curve)/equity_curve)*100)
                     max_dd_dolares = np.max(caidas_dolares)
                     max_dd_porcentual = np.max(caidas_dolares_porcentual)
 
@@ -305,6 +305,7 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
 
 
 
