@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
-
+import json
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Dashboard Montecarlo", layout="wide")
 
@@ -25,40 +25,32 @@ with st.sidebar:
     
     boton_correr = st.button("🚀 EJECUTAR SIMULACIÓN", type="primary")
 
-# --- FUNCIÓN DE CARGA DE DATOS (VERSIÓN CORREGIDA) ---
+# --- FUNCIÓN DE CARGA BLINDADA (SOLUCIÓN JSON) ---
 def cargar_datos_sheets(archivo, hoja):
-    # Definir los permisos
-    scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    # 1. Leemos el bloque de texto crudo desde los secretos
+    json_string = st.secrets["text_json"]
     
-    # PASO CLAVE 1: Convertir el objeto de Streamlit a un diccionario normal de Python
-    # Esto evita problemas de compatibilidad de tipos
-    secrets_dict = dict(st.secrets["gcp_service_account"])
-
-    # PASO CLAVE 2: Arreglar los saltos de línea en la clave privada
-    # A veces el archivo TOML lee el '\n' como dos letras separadas en lugar de un 'Enter'.
-    # Esto lo reemplaza por un salto de línea real.
-    if "private_key" in secrets_dict:
-        secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
-
-    # Autenticación robusta
-    creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
+    # 2. Lo convertimos a un diccionario Python real
+    credenciales_dict = json.loads(json_string)
+    
+    # 3. Autenticación
+    scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    creds = Credentials.from_service_account_info(credenciales_dict, scopes=scope)
     client = gspread.authorize(creds)
     
-    # Abrir hoja
+    # 4. Abrir hoja
     sh = client.open(archivo)
     worksheet = sh.worksheet(hoja)
     
-    # Leer datos
-    datos = worksheet.get("A:B") # Etiquetas y Valores
+    # 5. Leer datos
+    datos = worksheet.get("A:B")
     
     etiquetas = []
     valores = []
     
-    # Procesamiento simple
     for fila in datos:
         if len(fila) < 2: continue
         try:
-            # Limpieza de símbolos
             val = float(str(fila[1]).replace(',', '.').replace('%','').replace('$','').strip())
             etiquetas.append(str(fila[0]).lower())
             valores.append(val)
@@ -66,7 +58,6 @@ def cargar_datos_sheets(archivo, hoja):
             continue
             
     return np.array(valores), np.array(etiquetas), worksheet
-
 # --- LOGICA MONTECARLO ---
 def simular(r_multiples, balance, riesgo, n_trades, n_sims):
     seleccion = np.random.choice(r_multiples, size=(n_sims, n_trades), replace=True)
@@ -152,3 +143,4 @@ if boton_correr:
         except Exception as e:
 
             st.error(f"Ocurrió un error: {e}")
+
