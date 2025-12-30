@@ -49,7 +49,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### 🎲 Datos Simulación")
-    nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24 ")
+    nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24")
     n_simulaciones = st.slider("Simulaciones", 500, 5000, 2000)
     
     st.markdown("---")
@@ -297,3 +297,4 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
