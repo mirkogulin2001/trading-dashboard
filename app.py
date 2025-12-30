@@ -9,14 +9,13 @@ from google.oauth2.service_account import Credentials
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Trading Dashboard Pro", layout="wide", page_icon="📈")
 
-# Estilo CSS (Dark Mode)
+# Estilo CSS (Dark Mode & Tabs)
 st.markdown("""
 <style>
     .stApp {
         background-color: #0e1117;
         color: #fafafa;
     }
-    /* Ajuste para que las pestañas se vean bien */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
     }
@@ -37,10 +36,30 @@ st.markdown("""
 
 st.title("📊 Trading Command Center")
 
+# --- 0. BARRA LATERAL (CONFIGURACIÓN GLOBAL) ---
+with st.sidebar:
+    st.header("⚙️ Configuración Global")
+    
+    st.markdown("### 💰 Cuenta")
+    capital_inicial = st.number_input("Capital Inicial ($)", value=4000)
+    dd_tolerado = st.slider("Max DD Tolerado (Meta %)", 5.0, 30.0, 15.0)
+    
+    st.markdown("### ☁️ Google Sheets")
+    nombre_archivo = st.text_input("Nombre Archivo", "Registro2")
+    
+    st.markdown("---")
+    st.markdown("### 🎲 Datos Simulación")
+    nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24 ")
+    n_simulaciones = st.slider("Simulaciones", 500, 5000, 2000)
+    
+    st.markdown("---")
+    st.info("Nota: La pestaña de Estadísticas Reales buscará automáticamente la hoja 'Base' y la columna 'R'.")
+
+
 # --- 1. FUNCIONES DE CARGA Y CÁLCULO ---
 
 def obtener_cliente_gspread():
-    """Autenticación centralizada para no repetir código"""
+    """Autenticación centralizada"""
     json_string = st.secrets["text_json"]
     credenciales_dict = json.loads(json_string)
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -70,8 +89,8 @@ def cargar_datos_simulacion(archivo, hoja):
 def cargar_datos_reales(archivo):
     """Carga datos para Estadísticas Reales (Columna R de hoja 'Base')"""
     client = obtener_cliente_gspread()
-    hoja_nombre = "Base" # <--- NOMBRE FIJO DE LA HOJA NUEVA
-    columna_letra = "R"  # <--- COLUMNA DEL PnL ($)
+    hoja_nombre = "Base" 
+    columna_letra = "R"
     
     try:
         sh = client.open(archivo)
@@ -79,16 +98,13 @@ def cargar_datos_reales(archivo):
     except:
         raise Exception(f"No encontré la hoja '{hoja_nombre}' en el archivo '{archivo}'.")
     
-    # Obtenemos toda la columna R
     datos_crudos = ws.get(f"{columna_letra}:{columna_letra}")
-    
     pnl_dolares = []
     
-    # Empezamos desde el índice 1 para saltar el encabezado (fila 1)
+    # Saltamos el encabezado
     for fila in datos_crudos[1:]:
         if not fila: continue
         try:
-            # Limpieza agresiva de símbolos de moneda
             val_str = str(fila[0]).replace(',', '.').replace('$','').replace('USD','').replace(' ','')
             val = float(val_str)
             pnl_dolares.append(val)
@@ -97,74 +113,47 @@ def cargar_datos_reales(archivo):
             
     return np.array(pnl_dolares)
 
-def simular_montecarlo(r_multiples, balance, riesgo, n_trades, n_sims):
-    seleccion = np.random.choice(r_multiples, size=(n_sims, n_trades), replace=True)
-    retornos = seleccion * riesgo
-    mults = 1.0 + (retornos / 100.0)
-    curvas = np.zeros((n_sims, n_trades + 1))
-    curvas[:,0] = balance
-    curvas[:,1:] = balance * np.cumprod(mults, axis=1)
-    picos = np.maximum.accumulate(curvas, axis=1)
-    dds = (curvas - picos) / picos
-    return curves, np.min(dds, axis=1) * -100
-
 # --- 2. INTERFAZ DE USUARIO (TABS) ---
 
-# Creamos las dos pestañas
 tab_sim, tab_real = st.tabs(["🎲 Simulación & Riesgo", "📈 Estadísticas Reales ($)"])
 
 # ==========================================
-# PESTAÑA 1: SIMULACIÓN (TU CÓDIGO ANTERIOR)
+# PESTAÑA 1: SIMULACIÓN 
 # ==========================================
 with tab_sim:
     st.markdown("### 🛡️ Optimizador de Riesgo (Kelly + Montecarlo)")
     
-    # Barra de configuración (dentro del tab o global, aquí la pongo local para limpieza)
-    col_conf1, col_conf2 = st.columns(2)
-    with col_conf1:
-        capital_inicial = st.number_input("Capital Inicial ($)", value=4000)
-        dd_tolerado = st.slider("Max Drawdown Tolerado (%)", 5.0, 30.0, 15.0)
-    with col_conf2:
-        nombre_archivo = st.text_input("Nombre Archivo Sheets", "Registro2")
-        nombre_hoja_sim = st.text_input("Pestaña Datos R", "Hoja 24")
-
     if st.button("🚀 CORRER SIMULACIÓN", type="primary"):
         with st.spinner('Analizando futuros posibles...'):
             try:
-                # Lógica Montecarlo (Resumida del código anterior)
+                # Carga
                 vals, tags, ws = cargar_datos_simulacion(nombre_archivo, nombre_hoja_sim)
                 
-                # Stats
+                # Stats Simples
                 wins = vals[np.char.find(tags, 'win') >= 0]
                 losses = vals[np.char.find(tags, 'loss') >= 0]
                 wr = len(wins)/len(vals) if len(vals)>0 else 0
                 payoff = np.mean(wins)/abs(np.mean(losses)) if len(losses)>0 else 0
                 kelly = (wr - (1-wr)/payoff)*100
                 
-                # Optimización Rápida
+                # Optimización
                 riesgos = np.linspace(0.1, min(kelly, 25.0), 40)
                 mejor_r = 0.1
                 for r in riesgos:
-                    # Simulación interna rápida
                     sel = np.random.choice(vals, size=(500, 100), replace=True)
                     rets = sel * r
                     curves = capital_inicial * np.cumprod(1 + rets/100, axis=1)
-                    # Cálculo DD rápido
                     peaks = np.maximum.accumulate(curves, axis=1)
                     dds = (curves - peaks)/peaks
                     if np.percentile(dds.min(axis=1)*-100, 95) < dd_tolerado:
                         mejor_r = r
                     else: break
                 
-                # Simulación Final Detallada
+                # Simulación Final
                 n_trades_proj = 100
-                n_sims_final = 2000
-                
-                # Recalculamos para graficar
-                sel_f = np.random.choice(vals, size=(n_sims_final, n_trades_proj), replace=True)
+                sel_f = np.random.choice(vals, size=(n_simulaciones, n_trades_proj), replace=True)
                 rets_f = sel_f * mejor_r
-                # Insertamos columna de 0s para el capital inicial
-                curves_f = np.zeros((n_sims_final, n_trades_proj + 1))
+                curves_f = np.zeros((n_simulaciones, n_trades_proj + 1))
                 curves_f[:,0] = capital_inicial
                 curves_f[:,1:] = capital_inicial * np.cumprod(1 + rets_f/100, axis=1)
                 
@@ -174,7 +163,7 @@ with tab_sim:
                 peor_caso = np.percentile(dds_finales, 95)
                 mediana_final = np.median(curves_f[:,-1])
 
-                # KPIs
+                # KPIs Simulación
                 k1, k2, k3 = st.columns(3)
                 k1.metric("Riesgo Sugerido", f"{mejor_r:.2f}%", f"Kelly: {mejor_r/kelly:.2f}x")
                 k2.metric("Proyección Mediana", f"${mediana_final:,.0f}", f"+{((mediana_final-capital_inicial)/capital_inicial)*100:.1f}%")
@@ -204,7 +193,7 @@ with tab_sim:
                 ax3.axvline(np.median(roi_vals), color='#00ff41', linestyle='--')
                 ax3.set_title("Distribución de Retornos (%)")
                 
-                # 4. Curva Real R (Data Sim)
+                # 4. Curva Real R
                 ax4 = fig.add_subplot(gs[1, 1])
                 real_r_curve = np.cumsum(vals)
                 ax4.plot(real_r_curve, color='#00e5ff', marker='o', markersize=3)
@@ -223,13 +212,13 @@ with tab_sim:
 
 
 # ==========================================
-# PESTAÑA 2: ESTADÍSTICAS REALES (NUEVO)
+# PESTAÑA 2: ESTADÍSTICAS REALES (ACTUALIZADA)
 # ==========================================
 with tab_real:
     st.markdown("### 📊 Rendimiento Real (Datos Hoja 'Base')")
     
     if st.button("🔄 ACTUALIZAR DATOS REALES"):
-        with st.spinner('Descargando historial completo de la hoja Base...'):
+        with st.spinner('Procesando historial...'):
             try:
                 # 1. Cargar Datos PnL
                 pnl_real = cargar_datos_reales(nombre_archivo)
@@ -238,75 +227,73 @@ with tab_real:
                     st.warning("No se encontraron datos en la columna R de la hoja Base.")
                 else:
                     # 2. Cálculos Matemáticos
-                    # Curva acumulada
-                    equity_curve = np.cumsum(pnl_real)
-                    equity_curve = np.insert(equity_curve, 0, 0) # Empezamos en 0
                     
-                    # Métricas
+                    # A. Curva de Equity Real ($)
+                    # Sumamos el PnL al capital inicial configurado en el sidebar
+                    equity_curve_usd = np.cumsum(pnl_real)
+                    equity_curve_total = capital_inicial + equity_curve_usd
+                    # Insertamos el punto de partida (Capital Inicial)
+                    equity_curve_total = np.insert(equity_curve_total, 0, capital_inicial)
+                    
+                    # B. Métricas
                     total_pnl = np.sum(pnl_real)
                     n_trades = len(pnl_real)
                     
                     wins = pnl_real[pnl_real > 0]
                     losses = pnl_real[pnl_real <= 0]
-                    
                     win_rate = (len(wins) / n_trades) * 100
-                    
                     avg_win = np.mean(wins) if len(wins) > 0 else 0
-                    avg_loss = np.abs(np.mean(losses)) if len(losses) > 0 else 0 # Evitar div/0
-                    
+                    avg_loss = np.abs(np.mean(losses)) if len(losses) > 0 else 0
                     ratio_rb = avg_win / avg_loss if avg_loss > 0 else 0
                     
-                    # Cálculo Max Drawdown sobre PnL Acumulado
-                    # (Peak - Actual) / Peak no funciona bien con PnL si el PnL es negativo.
-                    # Usamos Drawdown absoluto en Dinero y Relativo al pico máximo de ganancia
-                    picos = np.maximum.accumulate(equity_curve)
-                    # Nota: Calcular DD % sobre PnL solo tiene sentido si asumimos un capital. 
-                    # Aquí calcularemos el "Max Drawdown $" (Caída máxima en dólares)
-                    caidas_dolares = picos - equity_curve
-                    caidas_dolares_porcentual = (((picos - equity_curve)/equity_curve)*100)
-                    max_dd_dolares = np.max(caidas_dolares)
-                    max_dd_porcentual = np.max(caidas_dolares_porcentual)
-
-                    # 3. Visualización de KPIs
-                    col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5, col_kpi6  = st.columns(6)
+                    # C. Cálculo de Drawdowns (Dólares y Porcentaje)
+                    picos = np.maximum.accumulate(equity_curve_total)
                     
-                    col_kpi1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal")
-                    col_kpi2.metric("Win Rate", f"{win_rate:.1f}%")
-                    col_kpi3.metric("R/B Ratio", f"{ratio_rb:.2f}")
-                    col_kpi4.metric("Trades", f"{n_trades}")
-                    col_kpi5.metric("Max DD ($)", f"-${max_dd_dolares:,.2f}", help="Máxima caída en dólares desde un pico de ganancias")
-                    col_kpi6.metric("Max DD (%)", f" -%{max_dd_porcentual:,.2f}", help="Máxima caída porcentual desde un pico de ganancias")
+                    # DD en Dólares (Pico - Actual)
+                    caidas_usd = picos - equity_curve_total
+                    max_dd_usd = np.max(caidas_usd)
+                    
+                    # DD en Porcentaje ( (Actual - Pico) / Pico )
+                    # Nota: equity - picos da negativo. Dividido por picos da % negativo.
+                    drawdowns_pct = (equity_curve_total - picos) / picos
+                    max_dd_pct = np.min(drawdowns_pct) * -100 # Lo pasamos a positivo para mostrarlo
+                    
+                    # 3. Visualización de KPIs (6 Columnas ahora)
+                    c1, c2, c3, c4, c5, c6 = st.columns(6)
+                    
+                    c1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal")
+                    c2.metric("Win Rate", f"{win_rate:.1f}%")
+                    c3.metric("R/B Ratio", f"{ratio_rb:.2f}")
+                    c4.metric("Trades", f"{n_trades}")
+                    c5.metric("Max DD ($)", f"-${max_dd_usd:,.2f}", help="Caída máxima en dinero")
+                    # NUEVO METRIC:
+                    c6.metric("Max DD (%)", f"{max_dd_pct:.2f}%", help="Caída máxima % respecto al balance")
 
                     # 4. Gráficos Reales
                     plt.style.use('dark_background')
                     fig_real = plt.figure(figsize=(16, 6))
                     
-                    # Gráfico de Área (PnL Acumulado)
+                    # Gráfico: Mostramos la evolución de la cuenta total
                     ax_main = fig_real.add_subplot(111)
-                    ax_main.plot(equity_curve, color='#00e5ff', linewidth=2, label='PnL Acumulado')
-                    ax_main.fill_between(range(len(equity_curve)), 0, equity_curve, color='#00e5ff', alpha=0.15)
+                    # Ploteamos la curva total (Capital + PnL)
+                    ax_main.plot(equity_curve_total, color='#00e5ff', linewidth=2, label='Balance Cuenta')
+                    ax_main.fill_between(range(len(equity_curve_total)), capital_inicial, equity_curve_total, color='#00e5ff', alpha=0.15)
                     
-                    # Línea de 0
-                    ax_main.axhline(0, color='white', linestyle='-', linewidth=1)
+                    # Línea de Capital Inicial (Breakeven de la cuenta)
+                    ax_main.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Capital Inicial')
                     
-                    # Decoración
-                    ax_main.set_title("Curva de Equity Real ($)", fontsize=16, fontweight='bold', color='white')
-                    ax_main.set_ylabel("Beneficio/Pérdida ($)", color='white')
+                    ax_main.set_title(f"Crecimiento de Cuenta (Inicio: ${capital_inicial})", fontsize=16, fontweight='bold', color='white')
+                    ax_main.set_ylabel("Balance Total ($)", color='white')
                     ax_main.set_xlabel("Número de Trade", color='white')
                     ax_main.grid(color='gray', linestyle=':', alpha=0.3)
                     ax_main.legend()
                     
                     st.pyplot(fig_real)
                     
-                    # 5. Tabla de Datos Recientes (Opcional, útil)
+                    # 5. Tabla
                     st.markdown("#### 📝 Últimos 5 Trades")
                     df_recientes = pd.DataFrame(pnl_real[-5:], columns=["PnL ($)"])
                     st.dataframe(df_recientes.style.format("${:.2f}"))
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
-
-
-
-
-
