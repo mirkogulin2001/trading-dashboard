@@ -236,7 +236,7 @@ with tab_real:
                     equity_curve_total = np.insert(equity_curve_total, 0, capital_inicial)
                     
                     # B. Métricas
-                    total_pnl = np.sum(pnl_real)
+                    total_pnl = np.sum(pnl_real)-167.3
                     n_trades = len(pnl_real)
                     
                     wins = pnl_real[pnl_real > 0]
@@ -297,5 +297,6 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
 
 
