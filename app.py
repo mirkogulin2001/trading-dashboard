@@ -25,27 +25,41 @@ with st.sidebar:
     
     boton_correr = st.button("🚀 EJECUTAR SIMULACIÓN", type="primary")
 
-# --- FUNCIÓN DE CARGA DE DATOS ---
+# --- FUNCIÓN DE CARGA DE DATOS (VERSIÓN CORREGIDA) ---
 def cargar_datos_sheets(archivo, hoja):
-    # Conexión usando Secretos de Streamlit (Más seguro)
+    # Definir los permisos
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    # Esto lee la info secreta que pondremos en la nube
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+    
+    # PASO CLAVE 1: Convertir el objeto de Streamlit a un diccionario normal de Python
+    # Esto evita problemas de compatibilidad de tipos
+    secrets_dict = dict(st.secrets["gcp_service_account"])
+
+    # PASO CLAVE 2: Arreglar los saltos de línea en la clave privada
+    # A veces el archivo TOML lee el '\n' como dos letras separadas en lugar de un 'Enter'.
+    # Esto lo reemplaza por un salto de línea real.
+    if "private_key" in secrets_dict:
+        secrets_dict["private_key"] = secrets_dict["private_key"].replace("\\n", "\n")
+
+    # Autenticación robusta
+    creds = Credentials.from_service_account_info(secrets_dict, scopes=scope)
     client = gspread.authorize(creds)
     
+    # Abrir hoja
     sh = client.open(archivo)
     worksheet = sh.worksheet(hoja)
     
+    # Leer datos
     datos = worksheet.get("A:B") # Etiquetas y Valores
     
     etiquetas = []
     valores = []
     
-    # Procesamiento simple (sin encabezados asumiendo fila 1 datos)
+    # Procesamiento simple
     for fila in datos:
         if len(fila) < 2: continue
         try:
-            val = float(str(fila[1]).replace(',', '.').replace('%','').replace('$',''))
+            # Limpieza de símbolos
+            val = float(str(fila[1]).replace(',', '.').replace('%','').replace('$','').strip())
             etiquetas.append(str(fila[0]).lower())
             valores.append(val)
         except:
@@ -136,4 +150,5 @@ if boton_correr:
                     st.error(f"Error al guardar: {e}")
                     
         except Exception as e:
+
             st.error(f"Ocurrió un error: {e}")
