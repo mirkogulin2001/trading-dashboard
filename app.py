@@ -25,24 +25,34 @@ with st.sidebar:
     
     boton_correr = st.button("🚀 EJECUTAR SIMULACIÓN", type="primary")
 
-# --- FUNCIÓN DE CARGA BLINDADA (SOLUCIÓN JSON) ---
+# --- FUNCIÓN DE CARGA BLINDADA CON DEBUG ---
 def cargar_datos_sheets(archivo, hoja):
-    # 1. Leemos el bloque de texto crudo desde los secretos
-    json_string = st.secrets["text_json"]
+    import json
     
-    # 2. Lo convertimos a un diccionario Python real
+    # 1. Cargar credenciales
+    json_string = st.secrets["text_json"]
     credenciales_dict = json.loads(json_string)
     
-    # 3. Autenticación
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_info(credenciales_dict, scopes=scope)
     client = gspread.authorize(creds)
     
-    # 4. Abrir hoja
-    sh = client.open(archivo)
-    worksheet = sh.worksheet(hoja)
+    # 2. Abrir archivo
+    try:
+        sh = client.open(archivo)
+    except gspread.SpreadsheetNotFound:
+        raise Exception(f"No encontré el archivo '{archivo}'. ¿Seguro que compartiste el Excel con el email del bot?")
+
+    # 3. Intentar abrir la pestaña (CON CHIVATO)
+    try:
+        worksheet = sh.worksheet(hoja)
+    except gspread.WorksheetNotFound:
+        # AQUÍ ESTÁ LA SOLUCIÓN:
+        # Si falla, le pedimos al bot que nos liste qué pestañas SÍ ve.
+        lista_pestañas = [s.title for s in sh.worksheets()]
+        raise Exception(f"⚠️ No encuentro la pestaña '{hoja}'. Las pestañas disponibles son: {lista_pestañas}")
     
-    # 5. Leer datos
+    # 4. Leer datos
     datos = worksheet.get("A:B")
     
     etiquetas = []
@@ -143,5 +153,6 @@ if boton_correr:
         except Exception as e:
 
             st.error(f"Ocurrió un error: {e}")
+
 
 
