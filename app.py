@@ -127,7 +127,7 @@ if boton_correr:
             kpi3.metric("Peor Drawdown (95%)", f"{peor_caso:.2f}%", f"Límite: {dd_tolerado}%", delta_color="inverse")
             
             # --- GRÁFICOS ---
-            fig, ax = plt.subplots(1, 2, figsize=(15, 6))
+            fig, ax = plt.subplots(1, 2, figsize=(10, 2))
             
             # Equity
             ax[0].plot(curvas[:100].T, color='gray', alpha=0.1)
@@ -143,9 +143,9 @@ if boton_correr:
             st.pyplot(fig)
             
             # --- ACTUALIZAR SHEET ---
-            if st.button("💾 Guardar Riesgo en Google Sheets (G2)"):
+            if st.button("💾 Guardar Riesgo en Google Sheets (H1)"):
                 try:
-                    ws.update_acell('G2', mejor_r/100)
+                    ws.update_acell('H1', mejor_r/100)
                     st.toast("¡Guardado correctamente en G2!", icon="✅")
                 except Exception as e:
                     st.error(f"Error al guardar: {e}")
@@ -153,6 +153,7 @@ if boton_correr:
         except Exception as e:
 
             st.error(f"Ocurrió un error: {e}")
+
 
 
 
