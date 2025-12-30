@@ -268,7 +268,7 @@ with tab_real:
                     max_dd_porcentual = np.max(caidas_dolares_porcentual)
 
                     # 3. Visualización de KPIs
-                    col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
+                    col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5, col_kpi6  = st.columns(5)
                     
                     col_kpi1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal")
                     col_kpi2.metric("Win Rate", f"{win_rate:.1f}%")
@@ -305,4 +305,5 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
 
