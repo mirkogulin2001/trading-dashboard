@@ -41,7 +41,8 @@ with st.sidebar:
     st.header("⚙️ Configuración Global")
     
     st.markdown("### 💰 Cuenta")
-    capital_inicial = st.number_input("Capital Inicial ($)", value=4000)
+    # AQUÍ ESTÁ EL CAMBIO: Valor por defecto -125.0
+    capital_inicial = st.number_input("Capital Inicial / Base ($)", value=-125.0, step=100.0)
     dd_tolerado = st.slider("Max DD Tolerado (Meta %)", 5.0, 30.0, 15.0)
     
     st.markdown("### ☁️ Google Sheets")
@@ -123,6 +124,9 @@ tab_sim, tab_real = st.tabs(["🎲 Simulación & Riesgo", "📈 Estadísticas Re
 with tab_sim:
     st.markdown("### 🛡️ Optimizador de Riesgo (Kelly + Montecarlo)")
     
+    if capital_inicial < 0:
+        st.warning("⚠️ Aviso: Has puesto un Capital Inicial negativo. La simulación de interés compuesto (multiplicativa) invertirá las gráficas de proyección. Para simular, se recomienda usar un capital positivo.")
+
     if st.button("🚀 CORRER SIMULACIÓN", type="primary"):
         with st.spinner('Analizando futuros posibles...'):
             try:
@@ -154,7 +158,7 @@ with tab_sim:
                 sel_f = np.random.choice(vals, size=(n_simulaciones, n_trades_proj), replace=True)
                 rets_f = sel_f * mejor_r
                 curves_f = np.zeros((n_simulaciones, n_trades_proj + 1))
-                capital_inicial = 4000
+                curves_f[:,0] = capital_inicial
                 curves_f[:,1:] = capital_inicial * np.cumprod(1 + rets_f/100, axis=1)
                 
                 peaks_f = np.maximum.accumulate(curves_f, axis=1)
@@ -166,7 +170,7 @@ with tab_sim:
                 # KPIs Simulación
                 k1, k2, k3 = st.columns(3)
                 k1.metric("Riesgo Sugerido", f"{mejor_r:.2f}%", f"Kelly: {mejor_r/kelly:.2f}x")
-                k2.metric("Proyección Mediana", f"${mediana_final:,.0f}", f"+{((mediana_final-capital_inicial)/capital_inicial)*100:.1f}%")
+                k2.metric("Proyección Mediana", f"${mediana_final:,.0f}", f"+{((mediana_final-capital_inicial)/abs(capital_inicial))*100:.1f}%")
                 k3.metric("Riesgo Ruina (95%)", f"{peor_caso:.2f}%", f"Límite: {dd_tolerado}%", delta_color="inverse")
 
                 # GRÁFICOS
@@ -188,7 +192,8 @@ with tab_sim:
                 
                 # 3. ROI Dist
                 ax3 = fig.add_subplot(gs[1, 0])
-                roi_vals = ((curves_f[:,-1] - capital_inicial)/capital_inicial)*100
+                # Usamos abs(capital_inicial) para que el % tenga sentido direccional
+                roi_vals = ((curves_f[:,-1] - capital_inicial)/abs(capital_inicial))*100
                 ax3.hist(roi_vals, bins=40, color='#ffaa00', alpha=0.7)
                 ax3.axvline(np.median(roi_vals), color='#00ff41', linestyle='--')
                 ax3.set_title("Distribución de Retornos (%)")
@@ -229,12 +234,13 @@ with tab_real:
                     # 2. Cálculos Matemáticos
                     
                     # A. Curva de Equity Real ($)
-                    equity_curve_usd = np.cumsum(pnl_real)-125
-                    equity_curve_total = equity_curve_usd
-                    equity_curve_total = np.insert(equity_curve_total, 0)
+                    # Sumamos el PnL al capital inicial (que ahora es negativo)
+                    equity_curve_usd = np.cumsum(pnl_real)
+                    equity_curve_total = capital_inicial + equity_curve_usd
+                    equity_curve_total = np.insert(equity_curve_total, 0, capital_inicial)
                     
                     # B. Métricas
-                    total_pnl = np.sum(pnl_real)-125
+                    total_pnl = np.sum(pnl_real)
                     n_trades = len(pnl_real)
                     
                     wins = pnl_real[pnl_real > 0]
@@ -246,12 +252,23 @@ with tab_real:
                     
                     # C. Cálculo de Vector de Drawdowns (Para graficar)
                     picos = np.maximum.accumulate(equity_curve_total)
-                    drawdowns_pct_vector = (equity_curve_total - picos) / picos * 100
+                    
+                    # Truco matemático: Si los picos son negativos (deuda), el cálculo porcentual
+                    # estándar (Val-Pico)/Pico puede dar signos raros. 
+                    # Lo más limpio es usar (Val - Pico) / abs(Pico) si queremos ver profundidad relativa,
+                    # o simplemente mantener la fórmula estándar pero sabiendo que sobre deuda es raro.
+                    # Aquí usaremos el estándar pero con divisor absoluto para mantener signo negativo de caída.
+                    
+                    divisor = np.abs(picos)
+                    # Evitar división por cero si algún pico es exactamente 0
+                    divisor[divisor == 0] = 1.0 
+                    
+                    drawdowns_pct_vector = (equity_curve_total - picos) / divisor * 100
                     
                     # Escalares para métricas
                     max_dd_usd = np.max(picos - equity_curve_total)
-                    max_dd_pct = np.min(drawdowns_pct_vector) # Es negativo (ej: -12%)
-                    current_dd_pct = drawdowns_pct_vector[-1] # El último valor es el actual
+                    max_dd_pct = np.min(drawdowns_pct_vector) 
+                    current_dd_pct = drawdowns_pct_vector[-1] 
                     
                     # 3. Visualización de KPIs
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -261,7 +278,6 @@ with tab_real:
                     c3.metric("R/B Ratio", f"{ratio_rb:.2f}")
                     c4.metric("Trades", f"{n_trades}")
                     c5.metric("Max DD ($)", f"-${max_dd_usd:,.2f}")
-                    # Mostramos el Max DD % en rojo
                     c6.metric("Max DD (%)", f"{max_dd_pct:.2f}%", f"Actual: {current_dd_pct:.2f}%", delta_color="inverse")
 
                     # 4. GRÁFICOS REALES (SUBPLOT UNDERWATER)
@@ -272,15 +288,20 @@ with tab_real:
                     
                     # PANEL 1: EQUITY ($)
                     ax1.plot(equity_curve_total, color='#00e5ff', linewidth=2, label='Balance')
+                    # Relleno inteligente: verde si > 0, rojo si < 0 (opcional, aquí simple cian)
                     ax1.fill_between(range(len(equity_curve_total)), capital_inicial, equity_curve_total, color='#00e5ff', alpha=0.1)
-                    ax1.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Capital Inicial')
+                    
+                    # Línea de 0 (Breakeven absoluto)
+                    ax1.axhline(0, color='yellow', linestyle=':', linewidth=1, label='$0 (Libre de Deuda)')
+                    # Línea de Capital Inicial
+                    ax1.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Inicio')
+                    
                     ax1.set_title(f"Crecimiento de Cuenta (Balance Actual: ${equity_curve_total[-1]:,.2f})", fontsize=14, fontweight='bold', color='white')
                     ax1.set_ylabel("Balance ($)", color='white')
                     ax1.grid(color='gray', linestyle=':', alpha=0.3)
                     ax1.legend()
                     
                     # PANEL 2: DRAWDOWN (%)
-                    # Pintamos de rojo/rosa el área de drawdown
                     ax2.plot(drawdowns_pct_vector, color='#ff0055', linewidth=1)
                     ax2.fill_between(range(len(drawdowns_pct_vector)), 0, drawdowns_pct_vector, color='#ff0055', alpha=0.3)
                     ax2.axhline(0, color='gray', linestyle='-', linewidth=0.5)
@@ -289,9 +310,7 @@ with tab_real:
                     ax2.set_title(f"Profundidad de Drawdown (Max: {max_dd_pct:.2f}% | Actual: {current_dd_pct:.2f}%)", fontsize=10, color='#ff0055')
                     ax2.grid(color='gray', linestyle=':', alpha=0.3)
                     
-                    # Ajustamos espacio entre gráficas
                     plt.subplots_adjust(hspace=0.1)
-                    
                     st.pyplot(fig_real)
                     
                     # 5. Tabla
@@ -301,4 +320,3 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
-
