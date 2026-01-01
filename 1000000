@@ -51,7 +51,7 @@ with st.sidebar:
     st.markdown("### 🎲 Datos Simulación")
     nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24")
     # CAMBIO: Slider hasta 1 Millón
-    n_simulaciones = st.slider("Simulaciones", 1000, 1000000, 10000)
+    n_simulaciones = st.slider("Simulaciones", 1000, 50000, 10000)
     
     st.markdown("---")
     st.info("Nota: La pestaña de Estadísticas Reales buscará automáticamente la hoja 'Base' y la columna 'R'.")
@@ -349,3 +349,4 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
