@@ -50,8 +50,8 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🎲 Datos Simulación")
     nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24")
-    # CAMBIO: Slider hasta 1 Millón
-    n_simulaciones = st.slider("Simulaciones", 1000, 50000, 10000)
+    # CAMBIO: Límite bajado a 100,000 para evitar crash de memoria
+    n_simulaciones = st.slider("Simulaciones", 1000, 100000, 10000)
     
     st.markdown("---")
     st.info("Nota: La pestaña de Estadísticas Reales buscará automáticamente la hoja 'Base' y la columna 'R'.")
@@ -156,10 +156,10 @@ with tab_sim:
                         mejor_r = r
                     else: break
                 
-                # Simulación Final Masiva
+                # Simulación Final
                 n_trades_proj = 100
                 
-                # Para evitar desbordamiento de memoria si es 1M, usamos float32
+                # Generación de datos
                 sel_f = np.random.choice(vals, size=(n_simulaciones, n_trades_proj), replace=True)
                 rets_f = sel_f * mejor_r
                 
@@ -190,7 +190,7 @@ with tab_sim:
                 
                 # 1. Equity
                 ax1 = fig.add_subplot(gs[0, 0])
-                # Solo ploteamos las primeras 200 curvas para no saturar el gráfico visualmente
+                # Solo ploteamos 200 para no saturar visualmente (pero calculamos con 100k)
                 ax1.plot(curves_f[:200].T, color='gray', alpha=0.05)
                 
                 # Líneas Clave
@@ -205,14 +205,12 @@ with tab_sim:
                 ax1.legend(facecolor='#1e1e1e', edgecolor='gray')
                 ax1.grid(color='gray', linestyle=':', alpha=0.2)
                 
-                # 2. Histograma Drawdown (Mejorado)
+                # 2. Histograma Drawdown
                 ax2 = fig.add_subplot(gs[0, 1])
                 counts, bins, _ = ax2.hist(dds_finales, bins=40, color='#ff0055', alpha=0.7, edgecolor='black', linewidth=0.5)
-                
-                # Línea Límite
                 ax2.axvline(dd_tolerado, color='yellow', linewidth=2, linestyle='-')
                 
-                # Texto en el gráfico
+                # Texto
                 y_max_dd = max(counts)
                 ax2.text(dd_tolerado * 1.05, y_max_dd * 0.9, f" Max DD Tolerado\n {dd_tolerado}%", color='yellow', fontweight='bold', fontsize=10)
                 ax2.text(peor_caso, y_max_dd * 0.5, f" 95% Confianza\n {peor_caso:.1f}%", color='white', fontsize=9)
@@ -221,20 +219,18 @@ with tab_sim:
                 ax2.set_xlabel("Caída Máxima (%)")
                 ax2.grid(color='gray', linestyle=':', alpha=0.2)
                 
-                # 3. Histograma Retornos (Mejorado)
+                # 3. Histograma Retornos
                 ax3 = fig.add_subplot(gs[1, 0])
                 roi_vals = ((curves_f[:,-1] - capital_inicial)/capital_inicial)*100
                 counts_roi, bins_roi, _ = ax3.hist(roi_vals, bins=50, color='#ffaa00', alpha=0.7, edgecolor='black', linewidth=0.5)
                 
-                # Percentiles
-                perc_95_right = np.percentile(roi_vals, 95) # El top 5% mejor
+                perc_95_right = np.percentile(roi_vals, 95)
                 perc_med = np.median(roi_vals)
                 
-                # Líneas
                 ax3.axvline(perc_med, color='#00ff41', linestyle='--', linewidth=2, label='Mediana')
                 ax3.axvline(perc_95_right, color='#00e5ff', linestyle='-', linewidth=2)
                 
-                # Texto "Top 5%"
+                # Texto
                 y_max_roi = max(counts_roi)
                 ax3.text(perc_95_right, y_max_roi * 0.8, f" Top 5%\n >{perc_95_right:.0f}%", color='#00e5ff', fontweight='bold')
                 
@@ -309,7 +305,7 @@ with tab_real:
                     # 3. Visualización de KPIs
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     
-                    c1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal")
+                    c1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal", help="Incluye ajuste de -112 USD")
                     c2.metric("Win Rate", f"{win_rate:.1f}%")
                     c3.metric("R/B Ratio", f"{ratio_rb:.2f}")
                     c4.metric("Trades", f"{n_trades}")
@@ -349,4 +345,3 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
-
