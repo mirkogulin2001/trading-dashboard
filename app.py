@@ -49,7 +49,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### 🎲 Datos Simulación")
-    nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24")
+    nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24 ")
     n_simulaciones = st.slider("Simulaciones", 500, 5000, 2000)
     
     st.markdown("---")
@@ -212,7 +212,7 @@ with tab_sim:
 
 
 # ==========================================
-# PESTAÑA 2: ESTADÍSTICAS REALES (ACTUALIZADA)
+# PESTAÑA 2: ESTADÍSTICAS REALES (CON DD CHART)
 # ==========================================
 with tab_real:
     st.markdown("### 📊 Rendimiento Real (Datos Hoja 'Base')")
@@ -229,10 +229,8 @@ with tab_real:
                     # 2. Cálculos Matemáticos
                     
                     # A. Curva de Equity Real ($)
-                    # Sumamos el PnL al capital inicial configurado en el sidebar
                     equity_curve_usd = np.cumsum(pnl_real)-125
                     equity_curve_total = capital_inicial + equity_curve_usd
-                    # Insertamos el punto de partida (Capital Inicial)
                     equity_curve_total = np.insert(equity_curve_total, 0, capital_inicial)
                     
                     # B. Métricas
@@ -246,47 +244,53 @@ with tab_real:
                     avg_loss = np.abs(np.mean(losses)) if len(losses) > 0 else 0
                     ratio_rb = avg_win / avg_loss if avg_loss > 0 else 0
                     
-                    # C. Cálculo de Drawdowns (Dólares y Porcentaje)
+                    # C. Cálculo de Vector de Drawdowns (Para graficar)
                     picos = np.maximum.accumulate(equity_curve_total)
+                    drawdowns_pct_vector = (equity_curve_total - picos) / picos * 100
                     
-                    # DD en Dólares (Pico - Actual)
-                    caidas_usd = picos - equity_curve_total
-                    max_dd_usd = np.max(caidas_usd)
+                    # Escalares para métricas
+                    max_dd_usd = np.max(picos - equity_curve_total)
+                    max_dd_pct = np.min(drawdowns_pct_vector) # Es negativo (ej: -12%)
+                    current_dd_pct = drawdowns_pct_vector[-1] # El último valor es el actual
                     
-                    # DD en Porcentaje ( (Actual - Pico) / Pico )
-                    # Nota: equity - picos da negativo. Dividido por picos da % negativo.
-                    drawdowns_pct = (equity_curve_total - picos) / picos
-                    max_dd_pct = np.min(drawdowns_pct) * -100 # Lo pasamos a positivo para mostrarlo
-                    
-                    # 3. Visualización de KPIs (6 Columnas ahora)
+                    # 3. Visualización de KPIs
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     
                     c1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal")
                     c2.metric("Win Rate", f"{win_rate:.1f}%")
                     c3.metric("R/B Ratio", f"{ratio_rb:.2f}")
                     c4.metric("Trades", f"{n_trades}")
-                    c5.metric("Max DD ($)", f"-${max_dd_usd:,.2f}", help="Caída máxima en dinero")
-                    # NUEVO METRIC:
-                    c6.metric("Max DD (%)", f"{max_dd_pct:.2f}%", help="Caída máxima % respecto al balance")
+                    c5.metric("Max DD ($)", f"-${max_dd_usd:,.2f}")
+                    # Mostramos el Max DD % en rojo
+                    c6.metric("Max DD (%)", f"{max_dd_pct:.2f}%", f"Actual: {current_dd_pct:.2f}%", delta_color="inverse")
 
-                    # 4. Gráficos Reales
+                    # 4. GRÁFICOS REALES (SUBPLOT UNDERWATER)
                     plt.style.use('dark_background')
-                    fig_real = plt.figure(figsize=(16, 6))
                     
-                    # Gráfico: Mostramos la evolución de la cuenta total
-                    ax_main = fig_real.add_subplot(111)
-                    # Ploteamos la curva total (Capital + PnL)
-                    ax_main.plot(equity_curve_total, color='#00e5ff', linewidth=2, label='Balance Cuenta')
-                    ax_main.fill_between(range(len(equity_curve_total)), capital_inicial, equity_curve_total, color='#00e5ff', alpha=0.15)
+                    # Creamos figura con 2 paneles (Altura 3:1)
+                    fig_real, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(16, 8), gridspec_kw={'height_ratios': [3, 1]})
                     
-                    # Línea de Capital Inicial (Breakeven de la cuenta)
-                    ax_main.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Capital Inicial')
+                    # PANEL 1: EQUITY ($)
+                    ax1.plot(equity_curve_total, color='#00e5ff', linewidth=2, label='Balance')
+                    ax1.fill_between(range(len(equity_curve_total)), capital_inicial, equity_curve_total, color='#00e5ff', alpha=0.1)
+                    ax1.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Capital Inicial')
+                    ax1.set_title(f"Crecimiento de Cuenta (Balance Actual: ${equity_curve_total[-1]:,.2f})", fontsize=14, fontweight='bold', color='white')
+                    ax1.set_ylabel("Balance ($)", color='white')
+                    ax1.grid(color='gray', linestyle=':', alpha=0.3)
+                    ax1.legend()
                     
-                    ax_main.set_title(f"Crecimiento de Cuenta (Inicio: ${capital_inicial})", fontsize=16, fontweight='bold', color='white')
-                    ax_main.set_ylabel("Balance Total ($)", color='white')
-                    ax_main.set_xlabel("Número de Trade", color='white')
-                    ax_main.grid(color='gray', linestyle=':', alpha=0.3)
-                    ax_main.legend()
+                    # PANEL 2: DRAWDOWN (%)
+                    # Pintamos de rojo/rosa el área de drawdown
+                    ax2.plot(drawdowns_pct_vector, color='#ff0055', linewidth=1)
+                    ax2.fill_between(range(len(drawdowns_pct_vector)), 0, drawdowns_pct_vector, color='#ff0055', alpha=0.3)
+                    ax2.axhline(0, color='gray', linestyle='-', linewidth=0.5)
+                    ax2.set_ylabel("Drawdown %", color='white')
+                    ax2.set_xlabel("Número de Trade", color='white')
+                    ax2.set_title(f"Profundidad de Drawdown (Max: {max_dd_pct:.2f}% | Actual: {current_dd_pct:.2f}%)", fontsize=10, color='#ff0055')
+                    ax2.grid(color='gray', linestyle=':', alpha=0.3)
+                    
+                    # Ajustamos espacio entre gráficas
+                    plt.subplots_adjust(hspace=0.1)
                     
                     st.pyplot(fig_real)
                     
@@ -297,7 +301,3 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
-
-
-
-
