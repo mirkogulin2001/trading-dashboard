@@ -41,8 +41,8 @@ with st.sidebar:
     st.header("⚙️ Configuración Global")
     
     st.markdown("### 💰 Cuenta")
-    # AQUÍ ESTÁ EL CAMBIO: Valor por defecto -125.0
-    capital_inicial = st.number_input("Capital Inicial / Base ($)", value=-125.0, step=100.0)
+    # VUELTA AL CAPITAL POSITIVO
+    capital_inicial = st.number_input("Capital Inicial ($)", value=3684.0, step=100.0)
     dd_tolerado = st.slider("Max DD Tolerado (Meta %)", 5.0, 30.0, 15.0)
     
     st.markdown("### ☁️ Google Sheets")
@@ -124,9 +124,6 @@ tab_sim, tab_real = st.tabs(["🎲 Simulación & Riesgo", "📈 Estadísticas Re
 with tab_sim:
     st.markdown("### 🛡️ Optimizador de Riesgo (Kelly + Montecarlo)")
     
-    if capital_inicial < 0:
-        st.warning("⚠️ Aviso: Has puesto un Capital Inicial negativo. La simulación de interés compuesto (multiplicativa) invertirá las gráficas de proyección. Para simular, se recomienda usar un capital positivo.")
-
     if st.button("🚀 CORRER SIMULACIÓN", type="primary"):
         with st.spinner('Analizando futuros posibles...'):
             try:
@@ -170,7 +167,7 @@ with tab_sim:
                 # KPIs Simulación
                 k1, k2, k3 = st.columns(3)
                 k1.metric("Riesgo Sugerido", f"{mejor_r:.2f}%", f"Kelly: {mejor_r/kelly:.2f}x")
-                k2.metric("Proyección Mediana", f"${mediana_final:,.0f}", f"+{((mediana_final-capital_inicial)/abs(capital_inicial))*100:.1f}%")
+                k2.metric("Proyección Mediana", f"${mediana_final:,.0f}", f"+{((mediana_final-capital_inicial)/capital_inicial)*100:.1f}%")
                 k3.metric("Riesgo Ruina (95%)", f"{peor_caso:.2f}%", f"Límite: {dd_tolerado}%", delta_color="inverse")
 
                 # GRÁFICOS
@@ -192,8 +189,7 @@ with tab_sim:
                 
                 # 3. ROI Dist
                 ax3 = fig.add_subplot(gs[1, 0])
-                # Usamos abs(capital_inicial) para que el % tenga sentido direccional
-                roi_vals = ((curves_f[:,-1] - capital_inicial)/abs(capital_inicial))*100
+                roi_vals = ((curves_f[:,-1] - capital_inicial)/capital_inicial)*100
                 ax3.hist(roi_vals, bins=40, color='#ffaa00', alpha=0.7)
                 ax3.axvline(np.median(roi_vals), color='#00ff41', linestyle='--')
                 ax3.set_title("Distribución de Retornos (%)")
@@ -234,7 +230,7 @@ with tab_real:
                     # 2. Cálculos Matemáticos
                     
                     # A. Curva de Equity Real ($)
-                    # Sumamos el PnL al capital inicial (que ahora es negativo)
+                    # Sumamos el PnL al capital inicial positivo
                     equity_curve_usd = np.cumsum(pnl_real)
                     equity_curve_total = capital_inicial + equity_curve_usd
                     equity_curve_total = np.insert(equity_curve_total, 0, capital_inicial)
@@ -250,20 +246,11 @@ with tab_real:
                     avg_loss = np.abs(np.mean(losses)) if len(losses) > 0 else 0
                     ratio_rb = avg_win / avg_loss if avg_loss > 0 else 0
                     
-                    # C. Cálculo de Vector de Drawdowns (Para graficar)
+                    # C. Cálculo de Vector de Drawdowns
                     picos = np.maximum.accumulate(equity_curve_total)
                     
-                    # Truco matemático: Si los picos son negativos (deuda), el cálculo porcentual
-                    # estándar (Val-Pico)/Pico puede dar signos raros. 
-                    # Lo más limpio es usar (Val - Pico) / abs(Pico) si queremos ver profundidad relativa,
-                    # o simplemente mantener la fórmula estándar pero sabiendo que sobre deuda es raro.
-                    # Aquí usaremos el estándar pero con divisor absoluto para mantener signo negativo de caída.
-                    
-                    divisor = np.abs(picos)
-                    # Evitar división por cero si algún pico es exactamente 0
-                    divisor[divisor == 0] = 1.0 
-                    
-                    drawdowns_pct_vector = (equity_curve_total - picos) / divisor * 100
+                    # Con capital positivo, esta fórmula es segura y estándar:
+                    drawdowns_pct_vector = (equity_curve_total - picos) / picos * 100
                     
                     # Escalares para métricas
                     max_dd_usd = np.max(picos - equity_curve_total)
@@ -288,13 +275,8 @@ with tab_real:
                     
                     # PANEL 1: EQUITY ($)
                     ax1.plot(equity_curve_total, color='#00e5ff', linewidth=2, label='Balance')
-                    # Relleno inteligente: verde si > 0, rojo si < 0 (opcional, aquí simple cian)
                     ax1.fill_between(range(len(equity_curve_total)), capital_inicial, equity_curve_total, color='#00e5ff', alpha=0.1)
-                    
-                    # Línea de 0 (Breakeven absoluto)
-                    ax1.axhline(0, color='yellow', linestyle=':', linewidth=1, label='$0 (Libre de Deuda)')
-                    # Línea de Capital Inicial
-                    ax1.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Inicio')
+                    ax1.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Capital Inicial')
                     
                     ax1.set_title(f"Crecimiento de Cuenta (Balance Actual: ${equity_curve_total[-1]:,.2f})", fontsize=14, fontweight='bold', color='white')
                     ax1.set_ylabel("Balance ($)", color='white')
