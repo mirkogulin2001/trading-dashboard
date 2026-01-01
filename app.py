@@ -230,13 +230,13 @@ with tab_real:
                     
                     # A. Curva de Equity Real ($)
                     # Sumamos el PnL al capital inicial configurado en el sidebar
-                    equity_curve_usd = np.cumsum(pnl_real)-167.3
+                    equity_curve_usd = np.cumsum(pnl_real)-125
                     equity_curve_total = capital_inicial + equity_curve_usd
                     # Insertamos el punto de partida (Capital Inicial)
                     equity_curve_total = np.insert(equity_curve_total, 0, capital_inicial)
                     
                     # B. Métricas
-                    total_pnl = np.sum(pnl_real)-167.3
+                    total_pnl = np.sum(pnl_real)-125
                     n_trades = len(pnl_real)
                     
                     wins = pnl_real[pnl_real > 0]
@@ -297,6 +297,7 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
 
 
 
