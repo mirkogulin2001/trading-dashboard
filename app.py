@@ -154,7 +154,7 @@ with tab_sim:
                 sel_f = np.random.choice(vals, size=(n_simulaciones, n_trades_proj), replace=True)
                 rets_f = sel_f * mejor_r
                 curves_f = np.zeros((n_simulaciones, n_trades_proj + 1))
-                curves_f[:,0] = capital_inicial
+                capital_inicial = 4000
                 curves_f[:,1:] = capital_inicial * np.cumprod(1 + rets_f/100, axis=1)
                 
                 peaks_f = np.maximum.accumulate(curves_f, axis=1)
@@ -230,8 +230,8 @@ with tab_real:
                     
                     # A. Curva de Equity Real ($)
                     equity_curve_usd = np.cumsum(pnl_real)-125
-                    equity_curve_total = capital_inicial + equity_curve_usd
-                    equity_curve_total = np.insert(equity_curve_total, 0, capital_inicial)
+                    equity_curve_total = equity_curve_usd
+                    equity_curve_total = np.insert(equity_curve_total, 0)
                     
                     # B. Métricas
                     total_pnl = np.sum(pnl_real)-125
@@ -301,3 +301,4 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
