@@ -50,8 +50,8 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🎲 Datos Simulación")
     nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24")
-    # CAMBIO: Límite bajado a 100,000 para evitar crash de memoria
-    n_simulaciones = st.slider("Simulaciones", 1000, 100000, 10000)
+    # CORRECCIÓN DE ESTABILIDAD: Máximo 10,000 para evitar crash de memoria
+    n_simulaciones = st.slider("Simulaciones", 500, 10000, 2000)
     
     st.markdown("---")
     st.info("Nota: La pestaña de Estadísticas Reales buscará automáticamente la hoja 'Base' y la columna 'R'.")
@@ -190,7 +190,7 @@ with tab_sim:
                 
                 # 1. Equity
                 ax1 = fig.add_subplot(gs[0, 0])
-                # Solo ploteamos 200 para no saturar visualmente (pero calculamos con 100k)
+                # Solo ploteamos 200 para no saturar visualmente
                 ax1.plot(curves_f[:200].T, color='gray', alpha=0.05)
                 
                 # Líneas Clave
