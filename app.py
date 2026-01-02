@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import gspread
 import pandas as pd
 import json
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from google.oauth2.service_account import Credentials
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
@@ -50,7 +52,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🎲 Datos Simulación")
     nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24")
-    # CAMBIO: Límite bajado a 100,000 para evitar crash de memoria
+    # Límite estable acordado: 100,000
     n_simulaciones = st.slider("Simulaciones", 1000, 100000, 10000)
     
     st.markdown("---")
@@ -142,11 +144,10 @@ with tab_sim:
                 payoff = np.mean(wins)/abs(np.mean(losses)) if len(losses)>0 else 0
                 kelly = (wr - (1-wr)/payoff)*100
                 
-                # Optimización (Usamos menos sims para esto para que sea rápido)
+                # Optimización Rápida
                 riesgos = np.linspace(0.1, min(kelly, 25.0), 40)
                 mejor_r = 0.1
                 for r in riesgos:
-                    # Simulación rápida para optimizar
                     sel = np.random.choice(vals, size=(1000, 100), replace=True)
                     rets = sel * r
                     curves = capital_inicial * np.cumprod(1 + rets/100, axis=1)
@@ -156,14 +157,11 @@ with tab_sim:
                         mejor_r = r
                     else: break
                 
-                # Simulación Final
+                # Simulación Final Masiva
                 n_trades_proj = 100
-                
-                # Generación de datos
                 sel_f = np.random.choice(vals, size=(n_simulaciones, n_trades_proj), replace=True)
                 rets_f = sel_f * mejor_r
                 
-                # Cálculo vectorizado
                 curves_f = np.zeros((n_simulaciones, n_trades_proj + 1), dtype=np.float64)
                 curves_f[:,0] = capital_inicial
                 curves_f[:,1:] = capital_inicial * np.cumprod(1 + rets_f/100, axis=1)
@@ -177,81 +175,116 @@ with tab_sim:
                 dds_finales = dds_f.min(axis=1) * -100
                 peor_caso = np.percentile(dds_finales, 95)
 
-                # KPIs Simulación
+                # KPIs
                 k1, k2, k3 = st.columns(3)
                 k1.metric("Riesgo Sugerido", f"{mejor_r:.2f}%", f"Kelly: {mejor_r/kelly:.2f}x")
                 k2.metric("Proyección Mediana", f"${mediana_final:,.0f}", f"+{((mediana_final-capital_inicial)/capital_inicial)*100:.1f}%")
                 k3.metric("Riesgo Ruina (95%)", f"{peor_caso:.2f}%", f"Límite: {dd_tolerado}%", delta_color="inverse")
 
-                # GRÁFICOS PROFESIONALES
+                # --- SECCIÓN GRÁFICA ---
+                
+                # 1. GRÁFICO PROYECCIÓN EQUITY (Matplotlib por rendimiento en líneas masivas)
                 plt.style.use('dark_background')
-                fig = plt.figure(figsize=(16, 10))
-                gs = fig.add_gridspec(2, 2)
+                fig_eq = plt.figure(figsize=(16, 6))
+                ax1 = fig_eq.add_subplot(111)
                 
-                # 1. Equity
-                ax1 = fig.add_subplot(gs[0, 0])
-                # Solo ploteamos 200 para no saturar visualmente (pero calculamos con 100k)
+                # Ploteamos solo una muestra para no saturar
                 ax1.plot(curves_f[:200].T, color='gray', alpha=0.05)
-                
-                # Líneas Clave
                 ax1.plot(np.median(curves_f, axis=0), color='#00ff41', linewidth=2.5, label='Mediana')
                 ax1.plot(np.mean(curves_f, axis=0), color='#00e5ff', linewidth=2, linestyle='-.', label='Media (Promedio)')
                 ax1.plot(np.percentile(curves_f, 5, axis=0), color='#ff0055', linewidth=1.5, linestyle='--', label='Peor Caso (5%)')
-                
-                # Línea Balance Inicial
                 ax1.axhline(capital_inicial, color='white', linestyle=':', linewidth=1.5, label='Balance Inicial')
                 
-                ax1.set_title("Proyección Montecarlo ($)", fontsize=14, fontweight='bold', color='white')
+                ax1.set_title("1. Proyección Montecarlo ($)", fontsize=14, fontweight='bold', color='white')
                 ax1.legend(facecolor='#1e1e1e', edgecolor='gray')
                 ax1.grid(color='gray', linestyle=':', alpha=0.2)
                 
-                # 2. Histograma Drawdown
-                ax2 = fig.add_subplot(gs[0, 1])
-                counts, bins, _ = ax2.hist(dds_finales, bins=40, color='#ff0055', alpha=0.7, edgecolor='black', linewidth=0.5)
-                ax2.axvline(dd_tolerado, color='yellow', linewidth=2, linestyle='-')
+                st.pyplot(fig_eq)
                 
-                # Texto
-                y_max_dd = max(counts)
-                ax2.text(dd_tolerado * 1.05, y_max_dd * 0.9, f" Max DD Tolerado\n {dd_tolerado}%", color='yellow', fontweight='bold', fontsize=10)
-                ax2.text(peor_caso, y_max_dd * 0.5, f" 95% Confianza\n {peor_caso:.1f}%", color='white', fontsize=9)
+                # --- HISTOGRAMAS INTERACTIVOS (PLOTLY) ---
+                col_hist1, col_hist2 = st.columns(2)
                 
-                ax2.set_title("Distribución de Riesgo (Drawdown)", fontsize=14, fontweight='bold', color='white')
-                ax2.set_xlabel("Caída Máxima (%)")
-                ax2.grid(color='gray', linestyle=':', alpha=0.2)
-                
-                # 3. Histograma Retornos
-                ax3 = fig.add_subplot(gs[1, 0])
-                roi_vals = ((curves_f[:,-1] - capital_inicial)/capital_inicial)*100
-                counts_roi, bins_roi, _ = ax3.hist(roi_vals, bins=50, color='#ffaa00', alpha=0.7, edgecolor='black', linewidth=0.5)
-                
-                perc_95_right = np.percentile(roi_vals, 95)
-                perc_med = np.median(roi_vals)
-                
-                ax3.axvline(perc_med, color='#00ff41', linestyle='--', linewidth=2, label='Mediana')
-                ax3.axvline(perc_95_right, color='#00e5ff', linestyle='-', linewidth=2)
-                
-                # Texto
-                y_max_roi = max(counts_roi)
-                ax3.text(perc_95_right, y_max_roi * 0.8, f" Top 5%\n >{perc_95_right:.0f}%", color='#00e5ff', fontweight='bold')
-                
-                ax3.set_title("Distribución de Retornos (%)", fontsize=14, fontweight='bold', color='white')
-                ax3.set_xlabel("Retorno Total (%)")
-                ax3.legend(facecolor='#1e1e1e')
-                ax3.grid(color='gray', linestyle=':', alpha=0.2)
-                
-                # 4. Curva Real R
-                ax4 = fig.add_subplot(gs[1, 1])
+                # A. Histograma Drawdown + Probabilidad Acumulada
+                with col_hist1:
+                    # Cálculo Probabilidad Acumulada
+                    sorted_dd = np.sort(dds_finales)
+                    y_cum_dd = np.arange(1, len(sorted_dd) + 1) / len(sorted_dd) * 100
+                    
+                    fig_dd = make_subplots(specs=[[{"secondary_y": True}]])
+                    
+                    # Histograma (Barras)
+                    fig_dd.add_trace(
+                        go.Histogram(x=dds_finales, nbinsx=40, name="Frecuencia", marker_color='#ff0055', opacity=0.6),
+                        secondary_y=False
+                    )
+                    
+                    # Línea Probabilidad Acumulada
+                    fig_dd.add_trace(
+                        go.Scatter(x=sorted_dd, y=y_cum_dd, name="Prob. Acumulada %", mode='lines', line=dict(color='yellow', width=2)),
+                        secondary_y=True
+                    )
+                    
+                    fig_dd.update_layout(
+                        title="<b>2. Distribución de Riesgo (Drawdown)</b>",
+                        xaxis_title="Drawdown Máximo (%)",
+                        yaxis_title="Frecuencia",
+                        template="plotly_dark",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        hovermode="x unified",
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    fig_dd.update_yaxes(title_text="Probabilidad Acumulada (%)", secondary_y=True, range=[0, 105])
+                    st.plotly_chart(fig_dd, use_container_width=True)
+
+                # B. Histograma Retornos + Probabilidad Acumulada
+                with col_hist2:
+                    roi_vals = ((curves_f[:,-1] - capital_inicial)/capital_inicial)*100
+                    
+                    # Cálculo Probabilidad Acumulada
+                    sorted_roi = np.sort(roi_vals)
+                    y_cum_roi = np.arange(1, len(sorted_roi) + 1) / len(sorted_roi) * 100
+                    
+                    fig_roi = make_subplots(specs=[[{"secondary_y": True}]])
+                    
+                    # Histograma
+                    fig_roi.add_trace(
+                        go.Histogram(x=roi_vals, nbinsx=50, name="Frecuencia", marker_color='#ffaa00', opacity=0.6),
+                        secondary_y=False
+                    )
+                    
+                    # Línea Probabilidad
+                    fig_roi.add_trace(
+                        go.Scatter(x=sorted_roi, y=y_cum_roi, name="Prob. Acumulada %", mode='lines', line=dict(color='#00e5ff', width=2)),
+                        secondary_y=True
+                    )
+                    
+                    fig_roi.update_layout(
+                        title="<b>3. Distribución de Retornos (%)</b>",
+                        xaxis_title="Retorno Total (%)",
+                        yaxis_title="Frecuencia",
+                        template="plotly_dark",
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        hovermode="x unified",
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    fig_roi.update_yaxes(title_text="Probabilidad Acumulada (%)", secondary_y=True, range=[0, 105])
+                    st.plotly_chart(fig_roi, use_container_width=True)
+
+                # 4. Curva Real R (Estática Matplotlib para mantener estilo)
+                fig_r = plt.figure(figsize=(16, 5))
+                ax4 = fig_r.add_subplot(111)
                 real_r_curve = np.cumsum(vals)
                 ax4.plot(real_r_curve, color='#00e5ff', marker='o', markersize=3, label='Mi Curva')
                 ax4.axhline(0, color='white', linestyle='-', linewidth=1)
-                ax4.set_title(f"Historial R ({real_r_curve[-1]:.1f}R)", fontsize=14, fontweight='bold', color='white')
+                ax4.set_title(f"4. Historial R ({real_r_curve[-1]:.1f}R)", fontsize=14, fontweight='bold', color='white')
                 ax4.fill_between(range(len(real_r_curve)), 0, real_r_curve, color='#00e5ff', alpha=0.15)
                 ax4.grid(color='gray', linestyle=':', alpha=0.2)
-                
-                plt.tight_layout()
-                st.pyplot(fig)
+                st.pyplot(fig_r)
                 
                 # Guardar
+                st.markdown("---")
                 if st.button("💾 Guardar Riesgo en G2"):
                     ws.update_acell('G2', mejor_r/100)
                     st.toast("Guardado!", icon="✅")
