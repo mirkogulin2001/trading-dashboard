@@ -52,7 +52,6 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🎲 Datos Simulación")
     nombre_hoja_sim = st.text_input("Pestaña (R-Multiples)", "Hoja 24")
-    # Límite estable acordado: 100,000
     n_simulaciones = st.slider("Simulaciones", 1000, 100000, 10000)
     
     st.markdown("---")
@@ -183,12 +182,11 @@ with tab_sim:
 
                 # --- SECCIÓN GRÁFICA ---
                 
-                # 1. GRÁFICO PROYECCIÓN EQUITY (Matplotlib por rendimiento en líneas masivas)
+                # 1. GRÁFICO PROYECCIÓN EQUITY
                 plt.style.use('dark_background')
                 fig_eq = plt.figure(figsize=(16, 6))
                 ax1 = fig_eq.add_subplot(111)
                 
-                # Ploteamos solo una muestra para no saturar
                 ax1.plot(curves_f[:200].T, color='gray', alpha=0.05)
                 ax1.plot(np.median(curves_f, axis=0), color='#00ff41', linewidth=2.5, label='Mediana')
                 ax1.plot(np.mean(curves_f, axis=0), color='#00e5ff', linewidth=2, linestyle='-.', label='Media (Promedio)')
@@ -204,75 +202,32 @@ with tab_sim:
                 # --- HISTOGRAMAS INTERACTIVOS (PLOTLY) ---
                 col_hist1, col_hist2 = st.columns(2)
                 
-                # A. Histograma Drawdown + Probabilidad Acumulada
+                # A. Histograma Drawdown
                 with col_hist1:
-                    # Cálculo Probabilidad Acumulada
                     sorted_dd = np.sort(dds_finales)
                     y_cum_dd = np.arange(1, len(sorted_dd) + 1) / len(sorted_dd) * 100
                     
                     fig_dd = make_subplots(specs=[[{"secondary_y": True}]])
-                    
-                    # Histograma (Barras)
-                    fig_dd.add_trace(
-                        go.Histogram(x=dds_finales, nbinsx=40, name="Frecuencia", marker_color='#ff0055', opacity=0.6),
-                        secondary_y=False
-                    )
-                    
-                    # Línea Probabilidad Acumulada
-                    fig_dd.add_trace(
-                        go.Scatter(x=sorted_dd, y=y_cum_dd, name="Prob. Acumulada %", mode='lines', line=dict(color='yellow', width=2)),
-                        secondary_y=True
-                    )
-                    
-                    fig_dd.update_layout(
-                        title="<b>2. Distribución de Riesgo (Drawdown)</b>",
-                        xaxis_title="Drawdown Máximo (%)",
-                        yaxis_title="Frecuencia",
-                        template="plotly_dark",
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        hovermode="x unified",
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
+                    fig_dd.add_trace(go.Histogram(x=dds_finales, nbinsx=40, name="Frecuencia", marker_color='#ff0055', opacity=0.6), secondary_y=False)
+                    fig_dd.add_trace(go.Scatter(x=sorted_dd, y=y_cum_dd, name="Prob. Acumulada %", mode='lines', line=dict(color='yellow', width=2)), secondary_y=True)
+                    fig_dd.update_layout(title="<b>2. Distribución de Riesgo (Drawdown)</b>", xaxis_title="Drawdown Máximo (%)", yaxis_title="Frecuencia", template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     fig_dd.update_yaxes(title_text="Probabilidad Acumulada (%)", secondary_y=True, range=[0, 105])
                     st.plotly_chart(fig_dd, use_container_width=True)
 
-                # B. Histograma Retornos + Probabilidad Acumulada
+                # B. Histograma Retornos
                 with col_hist2:
                     roi_vals = ((curves_f[:,-1] - capital_inicial)/capital_inicial)*100
-                    
-                    # Cálculo Probabilidad Acumulada
                     sorted_roi = np.sort(roi_vals)
                     y_cum_roi = np.arange(1, len(sorted_roi) + 1) / len(sorted_roi) * 100
                     
                     fig_roi = make_subplots(specs=[[{"secondary_y": True}]])
-                    
-                    # Histograma
-                    fig_roi.add_trace(
-                        go.Histogram(x=roi_vals, nbinsx=50, name="Frecuencia", marker_color='#ffaa00', opacity=0.6),
-                        secondary_y=False
-                    )
-                    
-                    # Línea Probabilidad
-                    fig_roi.add_trace(
-                        go.Scatter(x=sorted_roi, y=y_cum_roi, name="Prob. Acumulada %", mode='lines', line=dict(color='#00e5ff', width=2)),
-                        secondary_y=True
-                    )
-                    
-                    fig_roi.update_layout(
-                        title="<b>3. Distribución de Retornos (%)</b>",
-                        xaxis_title="Retorno Total (%)",
-                        yaxis_title="Frecuencia",
-                        template="plotly_dark",
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        hovermode="x unified",
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
+                    fig_roi.add_trace(go.Histogram(x=roi_vals, nbinsx=50, name="Frecuencia", marker_color='#ffaa00', opacity=0.6), secondary_y=False)
+                    fig_roi.add_trace(go.Scatter(x=sorted_roi, y=y_cum_roi, name="Prob. Acumulada %", mode='lines', line=dict(color='#00e5ff', width=2)), secondary_y=True)
+                    fig_roi.update_layout(title="<b>3. Distribución de Retornos (%)</b>", xaxis_title="Retorno Total (%)", yaxis_title="Frecuencia", template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', hovermode="x unified", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     fig_roi.update_yaxes(title_text="Probabilidad Acumulada (%)", secondary_y=True, range=[0, 105])
                     st.plotly_chart(fig_roi, use_container_width=True)
 
-                # 4. Curva Real R (Estática Matplotlib para mantener estilo)
+                # 4. Curva Real R
                 fig_r = plt.figure(figsize=(16, 5))
                 ax4 = fig_r.add_subplot(111)
                 real_r_curve = np.cumsum(vals)
@@ -283,7 +238,6 @@ with tab_sim:
                 ax4.grid(color='gray', linestyle=':', alpha=0.2)
                 st.pyplot(fig_r)
                 
-                # Guardar
                 st.markdown("---")
                 if st.button("💾 Guardar Riesgo en G2"):
                     ws.update_acell('G2', mejor_r/100)
@@ -294,7 +248,7 @@ with tab_sim:
 
 
 # ==========================================
-# PESTAÑA 2: ESTADÍSTICAS REALES
+# PESTAÑA 2: ESTADÍSTICAS REALES (NUEVA DISTRIBUCIÓN)
 # ==========================================
 with tab_real:
     st.markdown("### 📊 Rendimiento Real (Datos Hoja 'Base')")
@@ -327,49 +281,82 @@ with tab_real:
                     avg_loss = np.abs(np.mean(losses)) if len(losses) > 0 else 0
                     ratio_rb = avg_win / avg_loss if avg_loss > 0 else 0
                     
-                    # C. Cálculo de Vector de Drawdowns
+                    # C. Drawdowns
                     picos = np.maximum.accumulate(equity_curve_total)
                     drawdowns_pct_vector = (equity_curve_total - picos) / picos * 100
-                    
                     max_dd_usd = np.max(picos - equity_curve_total)
                     max_dd_pct = np.min(drawdowns_pct_vector) 
                     current_dd_pct = drawdowns_pct_vector[-1] 
                     
                     # 3. Visualización de KPIs
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
-                    
-                    c1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal", help="Incluye ajuste de -112 USD")
+                    c1.metric("PnL Total", f"${total_pnl:,.2f}", delta_color="normal")
                     c2.metric("Win Rate", f"{win_rate:.1f}%")
                     c3.metric("R/B Ratio", f"{ratio_rb:.2f}")
                     c4.metric("Trades", f"{n_trades}")
                     c5.metric("Max DD ($)", f"-${max_dd_usd:,.2f}")
                     c6.metric("Max DD (%)", f"{max_dd_pct:.2f}%", f"Actual: {current_dd_pct:.2f}%", delta_color="inverse")
 
-                    # 4. GRÁFICOS REALES
+                    # 4. GRÁFICOS REALES (LAYOUT DIVIDIDO)
                     plt.style.use('dark_background')
-                    fig_real, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(16, 8), gridspec_kw={'height_ratios': [3, 1]})
                     
-                    # PANEL 1: EQUITY ($)
-                    ax1.plot(equity_curve_total, color='#00e5ff', linewidth=2, label='Balance (c/ Ajuste)')
-                    ax1.fill_between(range(len(equity_curve_total)), capital_inicial, equity_curve_total, color='#00e5ff', alpha=0.1)
-                    ax1.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Capital Inicial')
+                    # Dividimos en 2 columnas: Gráfico Principal (3 partes) y Distribución (1 parte)
+                    col_chart_main, col_chart_dist = st.columns([3, 1])
                     
-                    ax1.set_title(f"Crecimiento de Cuenta (Balance Actual: ${equity_curve_total[-1]:,.2f})", fontsize=14, fontweight='bold', color='white')
-                    ax1.set_ylabel("Balance ($)", color='white')
-                    ax1.grid(color='gray', linestyle=':', alpha=0.3)
-                    ax1.legend()
+                    # --- COLUMNA 1: Equity + Drawdown (Stacked) ---
+                    with col_chart_main:
+                        fig_real, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 8), gridspec_kw={'height_ratios': [3, 1]})
+                        
+                        # Equity
+                        ax1.plot(equity_curve_total, color='#00e5ff', linewidth=2, label='Balance (c/ Ajuste)')
+                        ax1.fill_between(range(len(equity_curve_total)), capital_inicial, equity_curve_total, color='#00e5ff', alpha=0.1)
+                        ax1.axhline(capital_inicial, color='white', linestyle='--', linewidth=1, label='Capital Inicial')
+                        ax1.set_title(f"Crecimiento de Cuenta (Balance: ${equity_curve_total[-1]:,.0f})", fontsize=14, fontweight='bold', color='white')
+                        ax1.set_ylabel("Balance ($)", color='white')
+                        ax1.grid(color='gray', linestyle=':', alpha=0.3)
+                        ax1.legend(loc='upper left')
+                        
+                        # Drawdown
+                        ax2.plot(drawdowns_pct_vector, color='#ff0055', linewidth=1)
+                        ax2.fill_between(range(len(drawdowns_pct_vector)), 0, drawdowns_pct_vector, color='#ff0055', alpha=0.3)
+                        ax2.axhline(0, color='gray', linestyle='-', linewidth=0.5)
+                        ax2.set_ylabel("DD %", color='white')
+                        ax2.set_xlabel("Trades", color='white')
+                        ax2.set_title(f"Max DD: {max_dd_pct:.1f}%", fontsize=10, color='#ff0055')
+                        ax2.grid(color='gray', linestyle=':', alpha=0.3)
+                        
+                        st.pyplot(fig_real)
                     
-                    # PANEL 2: DRAWDOWN (%)
-                    ax2.plot(drawdowns_pct_vector, color='#ff0055', linewidth=1)
-                    ax2.fill_between(range(len(drawdowns_pct_vector)), 0, drawdowns_pct_vector, color='#ff0055', alpha=0.3)
-                    ax2.axhline(0, color='gray', linestyle='-', linewidth=0.5)
-                    ax2.set_ylabel("Drawdown %", color='white')
-                    ax2.set_xlabel("Número de Trade", color='white')
-                    ax2.set_title(f"Profundidad de Drawdown (Max: {max_dd_pct:.2f}% | Actual: {current_dd_pct:.2f}%)", fontsize=10, color='#ff0055')
-                    ax2.grid(color='gray', linestyle=':', alpha=0.3)
-                    
-                    plt.subplots_adjust(hspace=0.1)
-                    st.pyplot(fig_real)
+                    # --- COLUMNA 2: Histograma PnL + Normal (Vertical) ---
+                    with col_chart_dist:
+                        fig_hist = plt.figure(figsize=(4, 8))
+                        ax_hist = fig_hist.add_subplot(111)
+                        
+                        # 1. Datos del Histograma (Normalizados con density=True)
+                        count, bins, ignored = ax_hist.hist(pnl_real, bins=20, density=True, color='#aa00ff', alpha=0.6, edgecolor='black', orientation='vertical')
+                        
+                        # 2. Curva Normal Teórica
+                        mu, sigma = np.mean(pnl_real), np.std(pnl_real)
+                        # Creamos eje Y (PnL) para la curva normal
+                        y_norm = np.linspace(min(pnl_real), max(pnl_real), 100)
+                        # Fórmula Gaussiana
+                        x_norm = (1/(sigma * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((y_norm - mu)/sigma)**2)
+                        
+                        # 3. Dibujar Curva Normal
+                        ax_hist.plot(y_norm, x_norm, linewidth=2, color='white', linestyle='-')
+                        ax_hist.fill_between(y_norm, x_norm, color='white', alpha=0.2, label='Normal Teórica')
+                        
+                        # Decoración
+                        ax_hist.set_title("Distribución PnL", fontsize=12, fontweight='bold', color='white')
+                        ax_hist.set_xlabel("PnL ($)", color='white')
+                        # Quitamos eje Y (frecuencia) para limpiar visualmente, solo importa la forma
+                        ax_hist.get_yaxis().set_visible(False)
+                        ax_hist.grid(color='gray', linestyle=':', alpha=0.3)
+                        ax_hist.axvline(0, color='gray', linestyle='-')
+                        ax_hist.axvline(mu, color='yellow', linestyle='--', label=f'Media: ${mu:.0f}')
+                        ax_hist.legend(fontsize=8, loc='upper right')
+                        
+                        st.pyplot(fig_hist)
                     
                     # 5. Tabla
                     st.markdown("#### 📝 Últimos 5 Trades")
