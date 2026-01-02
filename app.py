@@ -329,7 +329,7 @@ with tab_real:
                     
                     # --- COLUMNA 2: Histograma PnL + Normal (Vertical) ---
                     with col_chart_dist:
-                        fig_hist = plt.figure(figsize=(4, 8))
+                        fig_hist = plt.figure(figsize=(4, 6))
                         ax_hist = fig_hist.add_subplot(111)
                         
                         # 1. Datos del Histograma (Normalizados con density=True)
@@ -365,3 +365,4 @@ with tab_real:
 
             except Exception as e:
                 st.error(f"Error cargando estadísticas: {e}")
+
